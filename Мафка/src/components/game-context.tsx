@@ -29,18 +29,18 @@ export interface Message {
 interface GameState {
   players: Player[];
   messages: Message[];
-  mafiaMessages: Message[]; // Добавляем сообщения для чата мафии
+  mafiaMessages: Message[];
   phase: GamePhase;
   day: number;
   selectedPlayer: number | null;
   checkedPlayers: Record<number, Role>;
   votes: Record<number, number>;
-  mafiaVotes: Record<number, number>; // Добавляем голоса мафии
+  mafiaVotes: Record<number, number>;
   winner: "mafia" | "civilians" | null;
   timer: number | null;
   mafiaCount: number;
-  testMode: boolean; // Добавляем режим тестирования
-  eliminatedPlayer: Player | null; // Добавляем игрока для последнего слова
+  testMode: boolean;
+  eliminatedPlayer: Player | null;
 }
 
 // Интерфейс контекста игры
@@ -58,7 +58,7 @@ const GameContext = React.createContext<GameContextType | undefined>(undefined);
 
 // Генерация случайных имен для ботов
 const botNames = [
-  "Алексей", "Мария", "Иван", "Елена", "Дмитрий", 
+  "Алексей", "Мария", "Иван", "Елена", "Дмитрий",
   "Анна", "Сергей", "Ольга", "Андрей", "Наталья",
   "Михаил", "Екатерина", "Владимир", "Татьяна", "Артём"
 ];
@@ -68,33 +68,35 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
   const [state, setState] = React.useState<GameState>({
     players: [],
     messages: [],
-    mafiaMessages: [], // Инициализируем массив сообщений мафии
+    mafiaMessages: [],
     phase: "setup",
     day: 1,
     selectedPlayer: null,
     checkedPlayers: {},
     votes: {},
-    mafiaVotes: {}, // Инициализируем голоса мафии
+    mafiaVotes: {},
     winner: null,
     timer: null,
     mafiaCount: 0,
     testMode: false,
-    eliminatedPlayer: null // Инициализируем игрока для последнего слова
+    eliminatedPlayer: null
   });
-  
-  // Таймер для фаз - исправление бага с таймером
+
+  // Таймер для фаз
   React.useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
-    
+
     if (state?.timer !== null && state?.timer !== undefined) {
       interval = setInterval(() => {
         setState(prevState => {
-          if (!prevState || prevState.timer === null) return prevState;
-          
+          if (!prevState || prevState.timer === null) {
+            if (interval) clearInterval(interval);
+            return prevState;
+          }
+
           if (prevState.timer <= 1) {
-            clearInterval(interval!);
-            
-            // Автоматический переход к следующей фазе
+            if (interval) clearInterval(interval);
+
             if (prevState.phase === "day") {
               return {
                 ...prevState,
@@ -112,21 +114,18 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
                 ]
               };
             } else if (prevState.phase === "voting") {
-              // Автоматически запускаем подсчет голосов
               setTimeout(() => processVotes(), 500);
               return {
                 ...prevState,
                 timer: null
               };
             } else if (prevState.phase === "last-word") {
-              // Автоматически переходим к ночи после последнего слова
               setTimeout(() => startNight(), 500);
               return {
                 ...prevState,
                 timer: null
               };
             } else if (prevState.phase === "mafia-chat") {
-              // Автоматически переходим к голосованию мафии
               setTimeout(() => startMafiaVoting(), 500);
               return {
                 ...prevState,
@@ -144,27 +143,25 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
                 ]
               };
             } else if (prevState.phase === "mafia-turn") {
-              // Автоматически выбираем жертву
               setTimeout(() => mafiaAction(), 500);
               return {
                 ...prevState,
                 timer: null
               };
             } else if (prevState.phase === "sheriff-turn") {
-              // Автоматически проверяем игрока
               setTimeout(() => sheriffAction(), 500);
               return {
                 ...prevState,
                 timer: null
               };
             }
-            
+
             return {
               ...prevState,
               timer: null
             };
           }
-          
+
           return {
             ...prevState,
             timer: prevState.timer - 1
@@ -172,40 +169,36 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
         });
       }, 1000);
     }
-    
+
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [state?.phase, state?.timer]); // Add dependencies to avoid race conditions during initialization
-  
-  // Инициализация игры - убираем аватарку у игрока
+  }, [state?.phase, state?.timer]);
+
+  // Инициализация игры
   const initGame = (playerCount: number, playerName: string, testMode: boolean = false) => {
-    // Создаем массив игроков
     const players: Player[] = [];
-    
-    // Добавляем реального игрока, если не тестовый режим
+
     if (!testMode) {
       players.push({
         id: 1,
         name: playerName,
-        role: "civilian", // Роль будет назначена позже
+        role: "civilian",
         isAlive: true,
         isBot: false,
-        avatar: "" // Убираем аватарку у игрока
+        avatar: ""
       });
     } else {
-      // В тестовом режиме добавляем бота вместо игрока
       players.push({
         id: 1,
         name: "Вы (Тест)",
-        role: "civilian", // Роль будет назначена позже
+        role: "civilian",
         isAlive: true,
         isBot: true,
-        avatar: "" // Убираем аватарку у бота
+        avatar: ""
       });
     }
-    
-    // Добавляем ботов
+
     const usedNames = new Set<string>();
     for (let i = 2; i <= playerCount; i++) {
       let name;
@@ -213,32 +206,30 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
         name = botNames[Math.floor(Math.random() * botNames.length)];
       } while (usedNames.has(name));
       usedNames.add(name);
-      
+
       players.push({
         id: i,
         name,
-        role: "civilian", // Роль будет назначена позже
+        role: "civilian",
         isAlive: true,
         isBot: true,
-        avatar: "" // Убираем аватарки у ботов
+        avatar: ""
       });
     }
-    
-    // Назначаем роли
+
     const mafiaCount = playerCount === 10 ? 3 : Math.max(1, Math.floor(playerCount / 4));
     assignRoles(players, mafiaCount);
-    
-    // Обновляем состояние
+
     setState({
       players,
       messages: [{
         id: 1,
-        playerId: 0, // 0 для системных сообщений
+        playerId: 0,
         text: "Игра началась! Наступил день 1. У вас 30 секунд на обсуждение.",
         timestamp: Date.now(),
         isSystem: true
       }],
-      mafiaMessages: [], // Инициализируем массив сообщений мафии
+      mafiaMessages: [],
       phase: "day",
       day: 1,
       selectedPlayer: null,
@@ -246,23 +237,21 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
       votes: {},
       mafiaVotes: {},
       winner: null,
-      timer: 30, // 30 секунд на обсуждение
+      timer: 30,
       mafiaCount,
       testMode,
       eliminatedPlayer: null
     });
-    
-    // Запускаем бота через небольшую задержку
+
     setTimeout(() => {
       botsTalk();
-      
-      // Автоматически переходим к голосованию через определенное время
+
       setTimeout(() => {
         if (state?.phase === "day") {
           setState(prev => ({
             ...prev,
             phase: "voting",
-            timer: 10, // 10 секунд на голосование
+            timer: 10,
             messages: [
               ...prev.messages,
               {
@@ -274,27 +263,24 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
               }
             ]
           }));
-          
-          // Запускаем голосование ботов
+
           setTimeout(() => {
             botsVote();
           }, 1500);
         }
-      }, 20000); // 20 секунд на дневное обсуждение
+      }, 20000);
     }, 1500);
   };
-  
+
   // Назначение ролей
   const assignRoles = (players: Player[], mafiaCount: number) => {
     const playersCopy = [...players];
-    
-    // Перемешиваем массив
+
     for (let i = playersCopy.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [playersCopy[i], playersCopy[j]] = [playersCopy[j], playersCopy[i]];
     }
-    
-    // Назначаем роли
+
     for (let i = 0; i < playersCopy.length; i++) {
       if (i < mafiaCount) {
         playersCopy[i].role = "mafia";
@@ -304,20 +290,18 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
         playersCopy[i].role = "civilian";
       }
     }
-    
-    // Перемешиваем снова, чтобы роли не были сгруппированы
+
     for (let i = playersCopy.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [playersCopy[i], playersCopy[j]] = [playersCopy[j], playersCopy[i]];
     }
-    
-    // Возвращаем игроков на их места
+
     for (let i = 0; i < players.length; i++) {
       const originalIndex = players.findIndex(p => p.id === playersCopy[i].id);
       players[originalIndex].role = playersCopy[i].role;
     }
   };
-  
+
   // Выбор игрока
   const selectPlayer = (playerId: number) => {
     setState(prev => ({
@@ -325,28 +309,26 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
       selectedPlayer: playerId
     }));
   };
-  
+
   // Отправка сообщения
   const sendMessage = (text: string, isMafiaChat: boolean = false) => {
-    // Находим реального игрока
     const player = state.players.find(p => !p.isBot);
-    
+
     if (!player || !text.trim() || !player.isAlive) return;
-    
+
     const newMessage: Message = {
       id: isMafiaChat ? state.mafiaMessages.length + 1 : state.messages.length + 1,
       playerId: player.id,
       text,
       timestamp: Date.now()
     };
-    
+
     if (isMafiaChat) {
       setState(prev => ({
         ...prev,
         mafiaMessages: [...prev.mafiaMessages, newMessage]
       }));
-      
-      // Боты-мафия реагируют на сообщение игрока
+
       setTimeout(() => {
         mafiaBotsTalk();
       }, 1500);
@@ -355,81 +337,70 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
         ...prev,
         messages: [...prev.messages, newMessage]
       }));
-      
-      // Анализируем сообщение и определяем триггеры для ботов
+
       const triggers = analyzeBotTriggers(text);
-      
-      // Боты реагируют на сообщение игрока
+
       setTimeout(() => {
         botsTalk(triggers);
       }, 1500);
     }
   };
-  
+
   // Анализ триггеров для ботов
   const analyzeBotTriggers = (message: string): string[] => {
     const triggers: string[] = [];
     const lowerMessage = message.toLowerCase();
-    
-    // Триггеры для обвинений
-    if (lowerMessage.includes("мафия") || 
-        lowerMessage.includes("подозрева") || 
-        lowerMessage.includes("убий") || 
+
+    if (lowerMessage.includes("мафия") ||
+        lowerMessage.includes("подозрева") ||
+        lowerMessage.includes("убий") ||
         lowerMessage.includes("голосу")) {
       triggers.push("accusation");
     }
-    
-    // Триггеры для защиты
-    if (lowerMessage.includes("невинов") || 
-        lowerMessage.includes("не я") || 
-        lowerMessage.includes("я не") || 
+
+    if (lowerMessage.includes("невинов") ||
+        lowerMessage.includes("не я") ||
+        lowerMessage.includes("я не") ||
         lowerMessage.includes("докажу")) {
       triggers.push("defense");
     }
-    
-    // Триггеры для шерифа
-    if (lowerMessage.includes("проверил") || 
-        lowerMessage.includes("шериф") || 
+
+    if (lowerMessage.includes("проверил") ||
+        lowerMessage.includes("шериф") ||
         lowerMessage.includes("роль")) {
       triggers.push("sheriff");
     }
-    
-    // Триггеры для стратегии
-    if (lowerMessage.includes("давайте") || 
-        lowerMessage.includes("предлага") || 
-        lowerMessage.includes("думаю") || 
+
+    if (lowerMessage.includes("давайте") ||
+        lowerMessage.includes("предлага") ||
+        lowerMessage.includes("думаю") ||
         lowerMessage.includes("план")) {
       triggers.push("strategy");
     }
-    
+
     return triggers;
   };
-  
+
   // Голосование
   const vote = (targetId: number, isMafiaVote: boolean = false) => {
     if ((isMafiaVote && state.phase !== "mafia-turn") || (!isMafiaVote && state.phase !== "voting")) return;
-    
-    // Находим реального игрока
+
     const player = state.players.find(p => !p.isBot);
     if (!player || !player.isAlive) return;
-    
-    // Проверяем, что игрок - мафия, если это голосование мафии
+
     if (isMafiaVote && player.role !== "mafia") return;
-    
-    // Обновляем голоса
+
     setState(prev => {
-      const newVotes = isMafiaVote 
+      const newVotes = isMafiaVote
         ? { ...prev.mafiaVotes, [player.id]: targetId }
         : { ...prev.votes, [player.id]: targetId };
-      
-      // Проверяем, проголосовали ли все живые игроки
+
       const livingPlayers = isMafiaVote
         ? prev.players.filter(p => p.isAlive && p.role === "mafia")
         : prev.players.filter(p => p.isAlive);
-      
+
       const votedPlayers = Object.keys(isMafiaVote ? newVotes : prev.votes).length;
-      
-      // Если все проголосовали, переходим к следующей фазе
+
       if (votedPlayers >= livingPlayers.length) {
         setTimeout(() => {
           if (isMafiaVote) {
@@ -438,15 +409,14 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             processVotes();
           }
         }, 1000);
-        
+
         return {
           ...prev,
           mafiaVotes: isMafiaVote ? newVotes : prev.mafiaVotes,
-          votes: isMafiaVote ? newVotes : prev.votes,
+          votes: isMafiaVote ? prev.votes : newVotes,
           timer: null
         };
       } else {
-        // Иначе боты голосуют
         setTimeout(() => {
           if (isMafiaVote) {
             mafiaBotsVote();
@@ -454,7 +424,7 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             botsVote();
           }
         }, 1500);
-        
+
         return {
           ...prev,
           mafiaVotes: isMafiaVote ? newVotes : prev.mafiaVotes,
@@ -463,80 +433,66 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
       }
     });
   };
-  
-  // Боты голосуют - исправление бага с голосованием ботов
+
+  // Боты голосуют
   const botsVote = () => {
     setState(prev => {
-      if (!prev || prev.phase !== "voting") return prev || {...state};
-      
+      if (!prev || prev.phase !== "voting") return prev;
+
       const newVotes = { ...prev.votes };
       const livingBots = prev.players.filter(p => p.isBot && p.isAlive);
       const livingPlayers = prev.players.filter(p => p.isAlive);
-      
+
       for (const bot of livingBots) {
-        if (newVotes[bot.id]) continue; // Бот уже проголосовал
-        
+        if (newVotes[bot.id]) continue;
+
         let targetId;
-        
+
         if (bot.role === "mafia") {
-          // Мафия голосует против случайного живого не-мафии
-          // Более умная стратегия: голосовать против шерифа, если он известен
-          const sheriffSuspects = livingPlayers.filter(p => 
-            p.isAlive && 
-            p.role !== "mafia" && 
+          const sheriffSuspects = livingPlayers.filter(p =>
+            p.isAlive &&
+            p.role !== "mafia" &&
             p.id !== bot.id &&
-            // Анализируем сообщения, чтобы найти подозрительных шерифов
-            prev.messages.some(m => 
-              m.playerId === p.id && 
-              (m.text.includes("подозрительно") || 
-               m.text.includes("проверил") || 
+            prev.messages.some(m =>
+              m.playerId === p.id &&
+              (m.text.includes("подозрительно") ||
+               m.text.includes("проверил") ||
                m.text.includes("думаю, что"))
             )
           );
-          
+
           if (sheriffSuspects.length > 0) {
-            // Голосуем против подозрительного шерифа
             targetId = sheriffSuspects[Math.floor(Math.random() * sheriffSuspects.length)].id;
           } else {
-            // Иначе голосуем против случайного не-мафии
-            const targets = livingPlayers.filter(p => 
-              p.isAlive && 
-              p.role !== "mafia" && 
-              p.id !== bot.id
-            );
+            const targets = livingPlayers.filter(p => p.isAlive && p.role !== "mafia" && p.id !== bot.id);
             if (targets.length > 0) {
               targetId = targets[Math.floor(Math.random() * targets.length)].id;
             }
           }
         } else if (bot.role === "sheriff") {
-          // Шериф голосует против проверенной мафии или подозрительных
           const checkedMafia = Object.entries(prev.checkedPlayers)
             .filter(([id, role]) => role === "mafia" && livingPlayers.some(p => p.id === parseInt(id) && p.isAlive))
             .map(([id]) => parseInt(id));
-          
+
           if (checkedMafia.length > 0) {
-            // Голосуем против проверенной мафии
             targetId = checkedMafia[0];
           } else {
-            // Голосуем против подозрительных (тех, кто мало говорит или агрессивен)
-            const suspiciousPlayers = livingPlayers.filter(p => 
-              p.isAlive && 
+            const suspiciousPlayers = livingPlayers.filter(p =>
+              p.isAlive &&
               p.id !== bot.id &&
-              // Анализируем сообщения, чтобы найти подозрительных
               (prev.messages.filter(m => m.playerId === p.id).length < 2 ||
-               prev.messages.some(m => 
-                 m.playerId === p.id && 
-                 (m.text.includes("Я не мафия") || 
-                  m.text.includes("Я мирный") || 
-                  m.text.includes("Не я") || 
+               prev.messages.some(m =>
+                 m.playerId === p.id &&
+                 (m.text.includes("Я не мафия") ||
+                  m.text.includes("Я мирный") ||
+                  m.text.includes("Не я") ||
                   m.text.includes("Точно не я"))
                ))
             );
-            
+
             if (suspiciousPlayers.length > 0) {
               targetId = suspiciousPlayers[Math.floor(Math.random() * suspiciousPlayers.length)].id;
             } else {
-              // Если нет подозрительных, голосуем случайно
               const targets = livingPlayers.filter(p => p.isAlive && p.id !== bot.id);
               if (targets.length > 0) {
                 targetId = targets[Math.floor(Math.random() * targets.length)].id;
@@ -544,60 +500,50 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             }
           }
         } else {
-          // Мирные жители голосуют против подозрительных
-          // Анализируем сообщения и поведение
           const messageCountByPlayer = new Map<number, number>();
-          
-          // Подсчитываем количество сообщений от каждого игрока
           prev.messages.forEach(m => {
             if (!m.isSystem) {
               messageCountByPlayer.set(m.playerId, (messageCountByPlayer.get(m.playerId) || 0) + 1);
             }
           });
-          
-          // Находим подозрительных игроков (те, кто мало говорит или слишком много оправдывается)
-          const suspiciousPlayers = livingPlayers.filter(p => 
-            p.isAlive && 
+
+          const suspiciousPlayers = livingPlayers.filter(p =>
+            p.isAlive &&
             p.id !== bot.id &&
-            ((messageCountByPlayer.get(p.id) || 0) < 2 || // Мало говорит
-             prev.messages.some(m => 
-               m.playerId === p.id && 
-               (m.text.includes("Я не мафия") || 
-                m.text.includes("Я мирный") || 
-                m.text.includes("Не я") || 
+            ((messageCountByPlayer.get(p.id) || 0) < 2 ||
+             prev.messages.some(m =>
+               m.playerId === p.id &&
+               (m.text.includes("Я не мафия") ||
+                m.text.includes("Я мирный") ||
+                m.text.includes("Не я") ||
                 m.text.includes("Точно не я"))
              ))
           );
-          
+
           if (suspiciousPlayers.length > 0) {
             targetId = suspiciousPlayers[Math.floor(Math.random() * suspiciousPlayers.length)].id;
           } else {
-            // Если нет подозрительных, голосуем случайно
             const targets = livingPlayers.filter(p => p.isAlive && p.id !== bot.id);
             if (targets.length > 0) {
               targetId = targets[Math.floor(Math.random() * targets.length)].id;
             }
           }
         }
-        
+
         if (targetId) {
           newVotes[bot.id] = targetId;
-          
-          // Добавляем сообщение о голосовании
-          const targetName = prev.players.find(p => p.id === targetId)?.name;
           prev.messages.push({
             id: prev.messages.length + 1,
             playerId: bot.id,
-            text: `Я голосую против ${targetName}!`,
+            text: `Я голосую против ${prev.players.find(p => p.id === targetId)?.name}!`,
             timestamp: Date.now()
           });
         }
       }
-      
-      // Проверяем, проголосовали ли все
+
       const livingPlayersCount = livingPlayers.length;
       const votedPlayersCount = Object.keys(newVotes).length;
-      
+
       if (votedPlayersCount >= livingPlayersCount) {
         setTimeout(() => {
           processVotes();
@@ -608,51 +554,45 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           timer: null
         };
       }
-      
+
       return {
         ...prev,
         votes: newVotes
       };
     });
   };
-  
-  // Голосование ботов-мафии - исправление бага с голосованием мафии
+
+  // Голосование ботов-мафии
   const mafiaBotsVote = () => {
     setState(prev => {
-      if (!prev || prev.phase !== "mafia-turn") return prev || {...state};
-      
+      if (!prev || prev.phase !== "mafia-turn") return prev;
+
       const newVotes = { ...prev.mafiaVotes };
       const livingMafiaBots = prev.players.filter(p => p.isBot && p.isAlive && p.role === "mafia");
       const potentialTargets = prev.players.filter(p => p.isAlive && p.role !== "mafia");
-      
+
       for (const bot of livingMafiaBots) {
-        if (newVotes[bot.id]) continue; // Бот уже проголосовал
-        
-        // Выбираем цель для мафии
+        if (newVotes[bot.id]) continue;
+
         if (potentialTargets.length > 0) {
-          // Приоритет: шериф (если известен) > активные игроки > случайные
-          
-          // Ищем подозрительных шерифов по сообщениям
-          const sheriffSuspects = potentialTargets.filter(p => 
-            prev.messages.some(m => 
-              m.playerId === p.id && 
-              (m.text.includes("подозрительно") || 
-               m.text.includes("проверил") || 
+          const sheriffSuspects = potentialTargets.filter(p =>
+            prev.messages.some(m =>
+              m.playerId === p.id &&
+              (m.text.includes("подозрительно") ||
+               m.text.includes("проверил") ||
                m.text.includes("думаю, что"))
             )
           );
-          
-          // Ищем активных игроков
+
           const messageCountByPlayer = new Map<number, number>();
           prev.messages.forEach(m => {
             if (!m.isSystem) {
               messageCountByPlayer.set(m.playerId, (messageCountByPlayer.get(m.playerId) || 0) + 1);
             }
           });
-          
+
           const activeTargets = potentialTargets.filter(p => (messageCountByPlayer.get(p.id) || 0) > 2);
-          
-          // Выбираем цель по приоритету
+
           let target;
           if (sheriffSuspects.length > 0) {
             target = sheriffSuspects[Math.floor(Math.random() * sheriffSuspects.length)];
@@ -661,10 +601,9 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           } else {
             target = potentialTargets[Math.floor(Math.random() * potentialTargets.length)];
           }
-          
+
           newVotes[bot.id] = target.id;
-          
-          // Добавляем сообщение о голосовании
+
           prev.mafiaMessages.push({
             id: prev.mafiaMessages.length + 1,
             playerId: bot.id,
@@ -673,56 +612,52 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           });
         }
       }
-      
-      // Проверяем, проголосовали ли все
+
       const livingMafia = prev.players.filter(p => p.isAlive && p.role === "mafia");
       const votedMafia = Object.keys(newVotes).length;
-      
+
       if (votedMafia >= livingMafia.length) {
         setTimeout(() => {
           processMafiaVotes();
         }, 1000);
-        
+
         return {
           ...prev,
           mafiaVotes: newVotes,
           timer: null
         };
       }
-      
+
       return {
         ...prev,
         mafiaVotes: newVotes
       };
     });
   };
-  
+
   // Обработка голосов мафии
   const processMafiaVotes = () => {
     setState(prev => {
-      // Подсчитываем голоса
       const voteCounts: Record<number, number> = {};
       Object.values(prev.mafiaVotes).forEach(targetId => {
         voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
       });
-      
-      // Находим игрока с наибольшим количеством голосов
+
       let maxVotes = 0;
       let targetId: number | null = null;
-      
+
       Object.entries(voteCounts).forEach(([id, count]) => {
         if (count > maxVotes) {
           maxVotes = count;
           targetId = parseInt(id);
         }
       });
-      
+
       if (targetId === null) {
-        // Если никто не выбран, переходим к ходу шерифа
         return {
           ...prev,
           phase: "sheriff-turn",
-          timer: 15, // 15 секунд на ход шерифа
+          timer: 15,
           messages: [
             ...prev.messages,
             {
@@ -735,16 +670,14 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           ]
         };
       }
-      
-      // Запоминаем цель, но не убиваем её сразу
+
       const target = prev.players.find(p => p.id === targetId);
-      
-      // Переходим к ходу шерифа
+
       return {
         ...prev,
         phase: "sheriff-turn",
-        timer: 15, // 15 секунд на ход шерифа
-        selectedPlayer: targetId, // Запоминаем цель мафии
+        timer: 15,
+        selectedPlayer: targetId,
         messages: [
           ...prev.messages,
           {
@@ -758,30 +691,60 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
       };
     });
   };
-  
-  // Обработка голосов - исправление бага с игроками, остающимися живыми после голосования
+
+  // Обработка голосов
   const processVotes = () => {
     setState(prev => {
       if (!prev) return prev;
-      
-      // Подсчитываем голоса
+
+      const realPlayer = prev.players.find(p => !p.isBot);
+      if (realPlayer && !realPlayer.isAlive && !prev.testMode) {
+        const winner = realPlayer.role === "mafia" ? "civilians" : "mafia";
+        return {
+          ...prev,
+          messages: [
+            ...prev.messages,
+            {
+              id: prev.messages.length + 1,
+              playerId: 0,
+              text: `Игрок ${realPlayer.name} был исключен. Его роль: ${getRoleName(realPlayer.role)}.`,
+              timestamp: Date.now(),
+              isSystem: true
+            },
+            {
+              id: prev.messages.length + 2,
+              playerId: 0,
+              text: winner === "mafia"
+                ? "Мафия победила! Они устранили всех мирных жителей."
+                : "Мирные жители победили! Вся мафия устранена.",
+              timestamp: Date.now(),
+              isSystem: true
+            }
+          ],
+          phase: "game-over",
+          votes: {},
+          winner,
+          timer: null,
+          selectedPlayer: null,
+          eliminatedPlayer: null
+        };
+      }
+
       const voteCounts: Record<number, number> = {};
       Object.values(prev.votes).forEach(targetId => {
         voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
       });
-      
-      // Находим игрока с наибольшим количеством голосов
+
       let maxVotes = 0;
       let eliminatedId: number | null = null;
-      
+
       Object.entries(voteCounts).forEach(([id, count]) => {
         if (count > maxVotes) {
           maxVotes = count;
           eliminatedId = parseInt(id);
         }
       });
-      
-      // Если никто не голосовал или равное количество голосов, никто не исключается
+
       if (eliminatedId === null || maxVotes <= 1) {
         return {
           ...prev,
@@ -808,11 +771,10 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           eliminatedPlayer: null
         };
       }
-      
+
       const eliminatedPlayer = prev.players.find(p => p.id === eliminatedId);
       if (!eliminatedPlayer) return prev;
-      
-      // Добавляем системное сообщение
+
       const newMessages = [
         ...prev.messages,
         {
@@ -823,8 +785,7 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           isSystem: true
         }
       ];
-      
-      // Если исключенный игрок - бот, добавляем его "последнее слово"
+
       if (eliminatedPlayer.isBot) {
         const lastWords = [
           "Вы совершаете ошибку! Я не мафия!",
@@ -836,29 +797,26 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           "Прощайте, друзья... Надеюсь, вы найдёте настоящую мафия.",
           "Вы только что убили мирного жителя. Хорошая работа, мафия!"
         ];
-        
-        // Добавляем последнее слово бота
+
         newMessages.push({
           id: newMessages.length + 1,
           playerId: eliminatedPlayer.id,
-          text: eliminatedPlayer.role === "mafia" 
-            ? "Вы меня раскрыли... Но это ещё не конец!" 
+          text: eliminatedPlayer.role === "mafia"
+            ? "Вы меня раскрыли... Но это ещё не конец!"
             : lastWords[Math.floor(Math.random() * lastWords.length)],
           timestamp: Date.now()
         });
       }
-      
-      // Немедленно помечаем игрока как мертвого
+
       const newPlayers = prev.players.map(p => {
         if (p.id === eliminatedId) {
           return { ...p, isAlive: false };
         }
         return p;
       });
-      
-      // Проверяем условия окончания игры
+
       const winner = checkWinCondition(newPlayers);
-      
+
       if (winner) {
         return {
           ...prev,
@@ -868,8 +826,8 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             {
               id: newMessages.length + 1,
               playerId: 0,
-              text: winner === "mafia" 
-                ? "Мафия победила! Они устранили всех мирных жителей." 
+              text: winner === "mafia"
+                ? "Мафия победила! Они устранили всех мирных жителей."
                 : "Мирные жители победили! Вся мафия устранена.",
               timestamp: Date.now(),
               isSystem: true
@@ -883,65 +841,47 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           eliminatedPlayer: eliminatedPlayer
         };
       }
-      
-      // Переходим к фазе последнего слова
+
       return {
         ...prev,
-        players: newPlayers, // Обновляем игроков с мертвым исключенным
+        players: newPlayers,
         messages: newMessages,
         phase: "last-word",
         votes: {},
-        timer: 15, // 15 секунд на последнее слово
+        timer: 15,
         eliminatedPlayer: eliminatedPlayer
       };
     });
-    
-    // Запускаем ночную фазу через небольшую задержку
+
     setTimeout(() => {
       startNight();
-    }, 5000); // 5 секунд на последнее слово или автоматический переход
+    }, 5000);
   };
-  
-  // Начало ночи - исправление бага с исключенным игроком
+
+  // Начало ночи
   const startNight = () => {
     setState(prev => {
-      // Проверка на null
       if (!prev) return prev;
-      
-      // Добавляем сообщение о роли исключенного игрока, если он есть
-      let newMessages = [...prev.messages];
-      
-      if (prev.eliminatedPlayer && prev.phase === "last-word") {
-        newMessages.push({
-          id: newMessages.length + 1,
-          playerId: 0,
-          text: `Игрок ${prev.eliminatedPlayer.name} был исключен из игры. Его роль: ${getRoleName(prev.eliminatedPlayer.role)}.`,
-          timestamp: Date.now(),
-          isSystem: true
-        });
-      }
-      
-      newMessages.push({
-        id: newMessages.length + 1,
-        playerId: 0,
-        text: "Наступила ночь. Город засыпает...",
-        timestamp: Date.now(),
-        isSystem: true
-      });
-      
-      // Проверяем условия окончания игры
-      const winner = checkWinCondition(prev.players);
-      
-      if (winner) {
+
+      const realPlayer = prev.players.find(p => !p.isBot);
+      if (realPlayer && !realPlayer.isAlive && !prev.testMode) {
+        const winner = realPlayer.role === "mafia" ? "civilians" : "mafia";
         return {
           ...prev,
           messages: [
-            ...newMessages,
+            ...prev.messages,
             {
-              id: newMessages.length + 1,
+              id: prev.messages.length + 1,
               playerId: 0,
-              text: winner === "mafia" 
-                ? "Мафия победила! Они устранили всех мирных жителей." 
+              text: `Игрок ${realPlayer.name} был исключен. Его роль: ${getRoleName(realPlayer.role)}.`,
+              timestamp: Date.now(),
+              isSystem: true
+            },
+            {
+              id: prev.messages.length + 2,
+              playerId: 0,
+              text: winner === "mafia"
+                ? "Мафия победила! Они устранили всех мирных жителей."
                 : "Мирные жители победили! Вся мафия устранена.",
               timestamp: Date.now(),
               isSystem: true
@@ -955,8 +895,53 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           eliminatedPlayer: null
         };
       }
-      
-      // Переходим к ночной фазе
+
+      let newMessages = [...prev.messages];
+
+      if (prev.eliminatedPlayer && prev.phase === "last-word") {
+        newMessages.push({
+          id: newMessages.length + 1,
+          playerId: 0,
+          text: `Игрок ${prev.eliminatedPlayer.name} был исключен из игры. Его роль: ${getRoleName(prev.eliminatedPlayer.role)}.`,
+          timestamp: Date.now(),
+          isSystem: true
+        });
+      }
+
+      newMessages.push({
+        id: newMessages.length + 1,
+        playerId: 0,
+        text: "Наступила ночь. Город засыпает...",
+        timestamp: Date.now(),
+        isSystem: true
+      });
+
+      const winner = checkWinCondition(prev.players);
+
+      if (winner) {
+        return {
+          ...prev,
+          messages: [
+            ...newMessages,
+            {
+              id: newMessages.length + 1,
+              playerId: 0,
+              text: winner === "mafia"
+                ? "Мафия победила! Они устранили всех мирных жителей."
+                : "Мирные жители победили! Вся мафия устранена.",
+              timestamp: Date.now(),
+              isSystem: true
+            }
+          ],
+          phase: "game-over",
+          votes: {},
+          winner,
+          timer: null,
+          selectedPlayer: null,
+          eliminatedPlayer: null
+        };
+      }
+
       return {
         ...prev,
         messages: newMessages,
@@ -966,25 +951,22 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
         eliminatedPlayer: null
       };
     });
-    
-    // Запускаем ночную фазу через небольшую задержку
+
     setTimeout(() => {
       nightPhase();
     }, 2000);
   };
-  
-  // Ночная фаза - исправление автоматического перехода к следующей фазе
+
+  // Ночная фаза
   const nightPhase = () => {
     setState(prev => {
-      // Проверяем, есть ли живая мафия
       const livingMafia = prev.players.filter(p => p.isAlive && p.role === "mafia");
-      
+
       if (livingMafia.length === 0) {
-        // Нет живой мафии, переходим к ходу шерифа
         return {
           ...prev,
           phase: "sheriff-turn",
-          timer: 15, // 15 секунд на ход шерифа
+          timer: 15,
           messages: [
             ...prev.messages,
             {
@@ -997,12 +979,11 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           ]
         };
       }
-      
-      // Есть живая мафия, переходим к чату мафии
+
       return {
         ...prev,
         phase: "mafia-chat",
-        timer: 20, // 20 секунд на обсуждение мафии
+        timer: 20,
         mafiaMessages: [
           {
             id: 1,
@@ -1014,28 +995,25 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
         ]
       };
     });
-    
-    // Запускаем чат мафии через небольшую задержку
+
     setTimeout(() => {
       mafiaBotsTalk();
-      
-      // Автоматически переходим к голосованию мафии через определенное время
+
       setTimeout(() => {
         startMafiaVoting();
-      }, 10000); // 10 секунд на чат мафии
+      }, 10000);
     }, 1500);
   };
-  
-  // Начало голосования мафии - исправление автоматического голосования
+
+  // Начало голосования мафии
   const startMafiaVoting = () => {
     setState(prev => {
-      // Проверяем, что все еще фаза чата мафии
       if (prev.phase !== "mafia-chat") return prev;
-      
+
       return {
         ...prev,
         phase: "mafia-turn",
-        timer: 15, // 15 секунд на голосование мафии
+        timer: 15,
         mafiaMessages: [
           ...prev.mafiaMessages,
           {
@@ -1048,36 +1026,28 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
         ]
       };
     });
-    
-    // Запускаем голосование ботов-мафии через небольшую задержку
+
     setTimeout(() => {
       mafiaBotsVote();
-      
-      // Автоматически обрабатываем голоса мафии через определенное время
+
       setTimeout(() => {
         processMafiaVotes();
-      }, 5000); // 5 секунд на голосование мафии
+      }, 5000);
     }, 1500);
   };
-  
-  // Боты-мафия общаются - исправление бага с чатом мафии
+
+  // Боты-мафия общаются
   const mafiaBotsTalk = () => {
     setState(prev => {
-      // Add null check for prev
-      if (!prev || prev.phase !== "mafia-chat") return prev || {...state};
-      
+      if (!prev || prev.phase !== "mafia-chat") return prev;
+
       const livingMafiaBots = prev.players.filter(p => p.isBot && p.isAlive && p.role === "mafia");
       if (livingMafiaBots.length === 0) return prev;
-      
-      // Выбираем случайного бота-мафию для сообщения
+
       const bot = livingMafiaBots[Math.floor(Math.random() * livingMafiaBots.length)];
-      
-      // Определяем "личность" бота на основе его ID
-      const botPersonality = bot.id % 4; // 0-3 разных типа личности
-      
-      // Генерируем сообщение для чата мафии
+      const botPersonality = bot.id % 4;
+
       const mafiaMessages = [
-        // Агрессивный тип (0)
         [
           "Я предлагаю убить самого активного игрока.",
           "Давайте устраним того, кто больше всех говорит.",
@@ -1085,7 +1055,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           "Предлагаю убить того, кто слишком подозрителен.",
           "Нам нужно избавиться от самого опасного игрока."
         ],
-        // Стратегический тип (1)
         [
           "Я думаю, нам стоит убить того, кто меньше всего подозревается.",
           "Давайте выберем жертву, которая не вызывает подозрений.",
@@ -1093,7 +1062,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           "Нам нужно быть стратегичными в выборе жертвы.",
           "Я предлагаю убить того, кто может объединить мирных жителей."
         ],
-        // Аналитический тип (2)
         [
           "Анализируя сообщения, я думаю, что шериф - это...",
           "Судя по голосованию, нам стоит убить...",
@@ -1101,7 +1069,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           "По моим наблюдениям, самый опасный для нас игрок - это...",
           "Статистически, нам выгоднее всего убить..."
         ],
-        // Осторожный тип (3)
         [
           "Давайте будем осторожны и не убивать слишком очевидные цели.",
           "Я предлагаю действовать незаметно и не привлекать внимание.",
@@ -1110,11 +1077,9 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           "Давайте тщательно обдумаем, кого убить."
         ]
       ];
-      
-      // Выбираем случайное сообщение из соответствующего набора
+
       const text = mafiaMessages[botPersonality][Math.floor(Math.random() * mafiaMessages[botPersonality].length)];
-      
-      // Добавляем потенциальную цель к сообщению
+
       const potentialTargets = prev.players.filter(p => p.isAlive && p.role !== "mafia");
       if (potentialTargets.length > 0) {
         const target = potentialTargets[Math.floor(Math.random() * potentialTargets.length)];
@@ -1125,62 +1090,54 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           `${target.name} может быть шерифом, его нужно устранить.`,
           `Я бы выбрал ${target.name} в качестве цели.`
         ];
-        
-        // С вероятностью 50% добавляем конкретное имя цели
+
         if (Math.random() > 0.5) {
           const targetText = targetMessages[Math.floor(Math.random() * targetMessages.length)];
-          
-          // Добавляем сообщение
           const newMessage: Message = {
             id: prev.mafiaMessages.length + 1,
             playerId: bot.id,
             text: targetText,
             timestamp: Date.now()
           };
-          
+
           return {
             ...prev,
             mafiaMessages: [...prev.mafiaMessages, newMessage]
           };
         }
       }
-      
-      // Добавляем сообщение
+
       const newMessage: Message = {
         id: prev.mafiaMessages.length + 1,
         playerId: bot.id,
         text,
         timestamp: Date.now()
       };
-      
+
       return {
         ...prev,
         mafiaMessages: [...prev.mafiaMessages, newMessage]
       };
     });
-    
-    // Планируем следующее сообщение от бота-мафии
+
     const randomDelay = 2000 + Math.floor(Math.random() * 2000);
     setTimeout(() => {
-      // Проверяем, что все еще фаза чата мафии
       if (state?.phase === "mafia-chat") {
         mafiaBotsTalk();
       }
     }, randomDelay);
   };
-  
-  // Действие мафии - исправление бага с выбором жертвы
+
+  // Действие мафии
   const mafiaAction = () => {
     setState(prev => {
-      // Находим живых членов мафии
       const livingMafia = prev.players.filter(p => p.isAlive && p.role === "mafia");
-      
+
       if (livingMafia.length === 0) {
-        // Нет живых мафий, переходим к ходу шерифа
         return {
           ...prev,
           phase: "sheriff-turn",
-          timer: 15, // 15 секунд на ход шерифа
+          timer: 15,
           messages: [
             ...prev.messages,
             {
@@ -1193,16 +1150,14 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           ]
         };
       }
-      
-      // Находим потенциальные цели
+
       const targets = prev.players.filter(p => p.isAlive && p.role !== "mafia");
-      
+
       if (targets.length === 0) {
-        // Нет целей, переходим к ходу шерифа
         return {
           ...prev,
           phase: "sheriff-turn",
-          timer: 15, // 15 секунд на ход шерифа
+          timer: 15,
           messages: [
             ...prev.messages,
             {
@@ -1215,36 +1170,28 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           ]
         };
       }
-      
-      // Используем сохраненную цель или выбираем новую
+
       let targetId = prev.selectedPlayer;
-      
-      // Если нет сохраненной цели или она недействительна, выбираем новую
+
       if (!targetId || !targets.some(p => p.id === targetId)) {
-        // Выбираем наиболее подозрительную цель
-        // Приоритет: шериф > активные игроки > случайные
-        
-        // Ищем подозрительных шерифов по сообщениям
-        const sheriffSuspects = targets.filter(p => 
-          prev.messages.some(m => 
-            m.playerId === p.id && 
-            (m.text.includes("подозрительно") || 
-             m.text.includes("проверил") || 
+        const sheriffSuspects = targets.filter(p =>
+          prev.messages.some(m =>
+            m.playerId === p.id &&
+            (m.text.includes("подозрительно") ||
+             m.text.includes("проверил") ||
              m.text.includes("думаю, что"))
           )
         );
-        
-        // Ищем активных игроков
+
         const messageCountByPlayer = new Map<number, number>();
         prev.messages.forEach(m => {
           if (!m.isSystem) {
             messageCountByPlayer.set(m.playerId, (messageCountByPlayer.get(m.playerId) || 0) + 1);
           }
         });
-        
+
         const activeTargets = targets.filter(p => (messageCountByPlayer.get(p.id) || 0) > 2);
-        
-        // Выбираем цель по приоритету
+
         let target;
         if (sheriffSuspects.length > 0) {
           target = sheriffSuspects[Math.floor(Math.random() * sheriffSuspects.length)];
@@ -1253,16 +1200,15 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
         } else {
           target = targets[Math.floor(Math.random() * targets.length)];
         }
-        
+
         targetId = target.id;
       }
-      
-      // Переходим к ходу шерифа (жертва будет "убита" только утром)
+
       return {
         ...prev,
         phase: "sheriff-turn",
-        timer: 15, // 15 секунд на ход шерифа
-        selectedPlayer: targetId, // Сохраняем цель мафии
+        timer: 15,
+        selectedPlayer: targetId,
         messages: [
           ...prev.messages,
           {
@@ -1275,76 +1221,63 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
         ]
       };
     });
-    
-    // Запускаем ход шерифа через небольшую задержку
+
     setTimeout(() => {
       sheriffAction();
     }, 1500);
   };
-  
+
   // Действие шерифа
   const sheriffAction = () => {
     setState(prev => {
-      // Находим шерифа
       const sheriff = prev.players.find(p => p.isAlive && p.role === "sheriff");
-      
+
       if (!sheriff) {
-        // Нет живого шерифа, переходим к результатам
         return {
           ...prev,
           phase: "results",
           timer: null
         };
       }
-      
-      // Если шериф - бот, выбираем игрока для проверки
+
       if (sheriff.isBot) {
-        // Более умная стратегия выбора цели для проверки
-        // Приоритет: подозрительные > не проверенные > случайные
-        
-        // Находим подозрительных игроков
-        const suspiciousPlayers = prev.players.filter(p => 
-          p.isAlive && 
+        const suspiciousPlayers = prev.players.filter(p =>
+          p.isAlive &&
           p.id !== sheriff.id &&
           !prev.checkedPlayers[p.id] &&
-          // Анализируем сообщения, чтобы найти подозрительных
           (prev.messages.filter(m => m.playerId === p.id).length < 2 ||
-           prev.messages.some(m => 
-             m.playerId === p.id && 
-             (m.text.includes("Я не мафия") || 
-              m.text.includes("Не я") || 
+           prev.messages.some(m =>
+             m.playerId === p.id &&
+             (m.text.includes("Я не мафия") ||
+              m.text.includes("Не я") ||
               m.text.includes("Точно не я"))
            ))
         );
-        
-        // Находим непроверенных игроков
-        const uncheckedPlayers = prev.players.filter(p => 
-          p.isAlive && 
+
+        const uncheckedPlayers = prev.players.filter(p =>
+          p.isAlive &&
           p.id !== sheriff.id &&
           !prev.checkedPlayers[p.id]
         );
-        
-        // Выбираем цель по приоритету
+
         let target;
         if (suspiciousPlayers.length > 0) {
           target = suspiciousPlayers[Math.floor(Math.random() * suspiciousPlayers.length)];
         } else if (uncheckedPlayers.length > 0) {
           target = uncheckedPlayers[Math.floor(Math.random() * uncheckedPlayers.length)];
         } else {
-          // Если все проверены, выбираем случайного
           const targets = prev.players.filter(p => p.isAlive && p.id !== sheriff.id);
           if (targets.length > 0) {
             target = targets[Math.floor(Math.random() * targets.length)];
           }
         }
-        
+
         if (target) {
-          // Обновляем проверенных игроков
           const newCheckedPlayers = {
             ...prev.checkedPlayers,
             [target.id]: target.role
           };
-          
+
           return {
             ...prev,
             checkedPlayers: newCheckedPlayers,
@@ -1353,16 +1286,14 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           };
         }
       } else if (prev.selectedPlayer) {
-        // Если шериф - реальный игрок и выбрал цель
         const target = prev.players.find(p => p.id === prev.selectedPlayer);
-        
+
         if (target) {
-          // Обновляем проверенных игроков
           const newCheckedPlayers = {
             ...prev.checkedPlayers,
             [target.id]: target.role
           };
-          
+
           return {
             ...prev,
             checkedPlayers: newCheckedPlayers,
@@ -1372,35 +1303,63 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           };
         }
       }
-      
-      // По умолчанию переходим к результатам
+
       return {
         ...prev,
         phase: "results",
         timer: null
       };
     });
-    
-    // Переходим к результатам
+
     setTimeout(() => {
       showResults();
     }, 1000);
   };
-  
-  // Показ результатов ночи - добавление автоматического перехода к дневной фазе
+
+  // Показ результатов ночи
   const showResults = () => {
     setState(prev => {
-      // Находим цель мафии
+      const realPlayer = prev.players.find(p => !p.isBot);
+      if (realPlayer && !realPlayer.isAlive && !prev.testMode) {
+        const winner = realPlayer.role === "mafia" ? "civilians" : "mafia";
+        return {
+          ...prev,
+          messages: [
+            ...prev.messages,
+            {
+              id: prev.messages.length + 1,
+              playerId: 0,
+              text: `Игрок ${realPlayer.name} был исключен. Его роль: ${getRoleName(realPlayer.role)}.`,
+              timestamp: Date.now(),
+              isSystem: true
+            },
+            {
+              id: prev.messages.length + 2,
+              playerId: 0,
+              text: winner === "mafia"
+                ? "Мафия победила! Они устранили всех мирных жителей."
+                : "Мирные жители победили! Вся мафия устранена.",
+              timestamp: Date.now(),
+              isSystem: true
+            }
+          ],
+          phase: "game-over",
+          votes: {},
+          winner,
+          timer: null,
+          selectedPlayer: null,
+          eliminatedPlayer: null
+        };
+      }
+
       const targetId = prev.selectedPlayer;
       let killedPlayer = null;
-      
-      // Обновляем состояние игроков
+
       const newPlayers = [...prev.players];
-      
+
       if (targetId) {
         const targetIndex = newPlayers.findIndex(p => p.id === targetId);
         if (targetIndex !== -1 && newPlayers[targetIndex].isAlive) {
-          // "Убиваем" цель мафии
           newPlayers[targetIndex] = {
             ...newPlayers[targetIndex],
             isAlive: false
@@ -1408,13 +1367,11 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           killedPlayer = newPlayers[targetIndex];
         }
       }
-      
-      // Находим шерифа
+
       const sheriff = prev.players.find(p => p.role === "sheriff" && p.isAlive);
-      
-      // Формируем сообщения
+
       const newMessages = [...prev.messages];
-      
+
       newMessages.push({
         id: newMessages.length + 1,
         playerId: 0,
@@ -1422,8 +1379,7 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
         timestamp: Date.now(),
         isSystem: true
       });
-      
-      // Добавляем сообщение о убитом игроке
+
       if (killedPlayer) {
         newMessages.push({
           id: newMessages.length + 1,
@@ -1441,13 +1397,12 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           isSystem: true
         });
       }
-      
-      // Если шериф - реальный игрок, добавляем сообщение о результате проверки
-      const sheriffCheckedId = Object.keys(prev.checkedPlayers).find(id => 
-        !Object.keys(prev.checkedPlayers).includes(id) && 
+
+      const sheriffCheckedId = Object.keys(prev.checkedPlayers).find(id =>
+        !Object.keys(prev.checkedPlayers).includes(id) &&
         parseInt(id) === prev.selectedPlayer
       );
-      
+
       if (sheriff && !sheriff.isBot && sheriffCheckedId) {
         const checkedPlayer = prev.players.find(p => p.id === parseInt(sheriffCheckedId));
         if (checkedPlayer) {
@@ -1461,21 +1416,20 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           });
         }
       }
-      
-      // Проверяем условия окончания игры
+
       const winner = checkWinCondition(newPlayers);
-      
+
       if (winner) {
         newMessages.push({
           id: newMessages.length + 1,
           playerId: 0,
-          text: winner === "mafia" 
-            ? "Мафия победила! Они устранили всех мирных жителей." 
+          text: winner === "mafia"
+            ? "Мафия победила! Они устранили всех мирных жителей."
             : "Мирные жители победили! Вся мафия устранена.",
           timestamp: Date.now(),
           isSystem: true
         });
-        
+
         return {
           ...prev,
           players: newPlayers,
@@ -1487,8 +1441,7 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           selectedPlayer: null
         };
       }
-      
-      // Переходим к следующему дню
+
       newMessages.push({
         id: newMessages.length + 1,
         playerId: 0,
@@ -1496,29 +1449,27 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
         timestamp: Date.now(),
         isSystem: true
       });
-      
+
       return {
         ...prev,
         players: newPlayers,
         messages: newMessages,
         phase: "day",
         day: prev.day + 1,
-        timer: 30, // 30 секунд на обсуждение
+        timer: 30,
         selectedPlayer: null
       };
     });
-    
-    // Запускаем бота через небольшую задержку
+
     setTimeout(() => {
       botsTalk();
-      
-      // Автоматически переходим к голосованию через определенное время
+
       setTimeout(() => {
         if (state?.phase === "day") {
           setState(prev => ({
             ...prev,
             phase: "voting",
-            timer: 10, // 10 секунд на голосование
+            timer: 10,
             messages: [
               ...prev.messages,
               {
@@ -1530,86 +1481,77 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
               }
             ]
           }));
-          
-          // Запускаем голосование ботов
+
           setTimeout(() => {
             botsVote();
           }, 1500);
         }
-      }, 20000); // 20 секунд на дневное обсуждение
+      }, 20000);
     }, 1500);
   };
-  
-  // Боты общаются с улучшенным ИИ - исправление инициативы ботов
+
+  // Боты общаются
   const botsTalk = (triggers: string[] = []) => {
     setState(prev => {
-      // Add null check for prev
-      if (!prev || !prev.players) return prev || {...state};
-      
-      // Проверяем, что сейчас день и игра не закончилась
-      if (prev.phase !== "day" || prev.winner) return prev;
-      
+      if (!prev || !prev.players || prev.phase !== "day" || prev.winner) return prev;
+
       const livingBots = prev.players.filter(p => p.isBot && p.isAlive);
       if (livingBots.length === 0) return prev;
-      
-      // Выбираем бота для сообщения - предпочитаем тех, кто реагирует на триггеры
+
       let bot;
       if (triggers.length > 0) {
-        // Находим ботов, которые могут отреагировать на триггеры
         const relevantBots = livingBots.filter(b => {
           if (triggers.includes("sheriff") && b.role === "sheriff") return true;
           if (triggers.includes("accusation") && b.role === "mafia") return true;
           if (triggers.includes("defense")) return true;
           return false;
         });
-        
-        if (relevantBots.length > 0) {
-          bot = relevantBots[Math.floor(Math.random() * relevantBots.length)];
-        } else {
-          bot = livingBots[Math.floor(Math.random() * livingBots.length)];
-        }
+        bot = relevantBots.length > 0
+          ? relevantBots[Math.floor(Math.random() * relevantBots.length)]
+          : livingBots[Math.floor(Math.random() * livingBots.length)];
       } else {
         bot = livingBots[Math.floor(Math.random() * livingBots.length)];
       }
-      
-      // Определяем "личность" бота на основе его ID
-      const botPersonality = bot.id % 4; // 0-3 разных типа личности
-      const messageType = triggers.includes("accusation") ? "accusation" : triggers.includes("defense") ? "defense" : triggers.includes("sheriff") && bot.role === "sheriff" ? "sheriff" : triggers.includes("strategy") ? "strategy" : "default";
-      
-      // Генерируем сообщение в зависимости от роли, личности и триггеров
-      let text = getBotMessage(bot.role, botPersonality, messageType, prev);
-      
-      // Добавляем сообщение
+
+      const botPersonality = bot.id % 4;
+      const messageType = triggers.includes("accusation")
+        ? "accusation"
+        : triggers.includes("defense")
+        ? "defense"
+        : triggers.includes("sheriff") && bot.role === "sheriff"
+        ? "sheriff"
+        : triggers.includes("strategy")
+        ? "strategy"
+        : "default";
+
+      const text = getBotMessage(bot.role, botPersonality, messageType, prev);
+
       const newMessage: Message = {
         id: prev.messages.length + 1,
         playerId: bot.id,
         text,
         timestamp: Date.now()
       };
-      
+
       return {
         ...prev,
         messages: [...prev.messages, newMessage]
       };
     });
-    
-    // Планируем следующее сообщение от бота
+
     const randomDelay = 2000 + Math.floor(Math.random() * 3000);
     setTimeout(() => {
-      // Проверяем, что все еще день и игра не закончилась
       if (state?.phase === "day" && !state?.winner) {
         botsTalk();
       }
     }, randomDelay);
   };
-  
-  // Получение сообщения бота в зависимости от роли, личности и триггеров
+
+  // Получение сообщения бота
   const getBotMessage = (role: Role, personality: number, messageType: string, state: GameState): string => {
-    // Большая база фраз для ботов
     const botPhrases: Record<string, Record<string, string[][]>> = {
       "mafia": {
         "default": [
-          // Агрессивный тип (0)
           [
             "Я предлагаю убить самого активного игрока.",
             "Давайте устраним того, кто больше всех говорит.",
@@ -1617,7 +1559,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Предлагаю убить того, кто слишком подозрителен.",
             "Нам нужно избавиться от самого опасного игрока."
           ],
-          // Защищающийся тип (1)
           [
             "Я не мафия, я мирный житель!",
             "Почему вы меня обвиняете?",
@@ -1626,7 +1567,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Я понимаю вас, но вы ошибаетесь.",
             "Я клянусь, что я не мафия! Поверьте мне!"
           ],
-          // Аналитический тип (2)
           [
             "Давайте логически подумаем, кто мог бы быть мафия.",
             "Если проанализировать поведение всех, то подозрительны...",
@@ -1636,7 +1576,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Статистически, вероятность того, что мафия среди молчунов, довольно высока.",
             "Давайте построим модель поведения каждого и найдем несоответствия."
           ],
-          // Отвлекающий тип (3)
           [
             "Давайте не будем спешить с выводами на основе этих обвинений.",
             "У кого есть какие-то доказательства? Я не видел ничего подозрительного.",
@@ -1649,7 +1588,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           ]
         ],
         "accusation": [
-          // Агрессивный тип (0)
           [
             "Это абсурдные обвинения! Вы сами выглядите подозрительно.",
             "Вы пытаетесь отвести подозрения от себя, обвиняя других!",
@@ -1660,7 +1598,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Вы просто бросаетесь обвинениями без всяких оснований.",
             "Я бы на вашем месте был осторожнее с такими заявлениями."
           ],
-          // Защищающийся тип (1)
           [
             "Я не мафия, клянусь! Почему вы меня обвиняете?",
             "Пожалуйста, поверьте мне, я на стороне города!",
@@ -1671,7 +1608,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Если вы проголосуете против меня, город потеряет мирного жителя.",
             "Я клянусь, что я не мафия! Поверьте мне!"
           ],
-          // Аналитический тип (2)
           [
             "Ваши обвинения нелогичны. Давайте проанализируем факты.",
             "Если бы я был мафией, я бы действовал иначе.",
@@ -1682,7 +1618,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Если проанализировать мое поведение объективно, вы увидите, что я не мафия.",
             "Ваши выводы основаны на ложных предпосылках."
           ],
-          // Отвлекающий тип (3)
           [
             "А вы не думали, что настоящая мафия сейчас молчит?",
             "Давайте не будем отвлекаться на беспочвенные обвинения.",
@@ -1695,7 +1630,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           ]
         ],
         "defense": [
-          // Агрессивный тип (0)
           [
             "Вот именно так настоящая мафия и оправдывается!",
             "Чем больше ты оправдываешься, тем подозрительнее выглядишь.",
@@ -1706,7 +1640,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Ты слишком нервничаешь для невиновного.",
             "Чем больше ты говоришь, тем больше выдаешь себя."
           ],
-          // Защищающийся тип (1)
           [
             "Я тоже не мафия! Мы все тут пытаемся выжить.",
             "Я понимаю тебя, меня тоже обвиняли безосновательно.",
@@ -1717,7 +1650,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Оправдываться - это нормально, я бы тоже защищался.",
             "Давайте будем справедливы друг к другу."
           ],
-          // Аналитический тип (2)
           [
             "Интересно, что ты так активно защищаешься. Статистически это подозрительно.",
             "Твои аргументы логичны, но недостаточны для полного оправдания.",
@@ -1728,10 +1660,9 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Если применить логику, то твои оправдания не всегда убедительны.",
             "Я бы хотел услышать более конкретные аргументы в твою защиту."
           ],
-          // Отвлекающий тип (3)
           [
             "Давайте не будем зацикливаться на оправданиях.",
-            "Вместо оправданий, давайте обсудить стратегию.",
+            "Вместо оправданий, давайте обсудим стратегию.",
             "Я думаю, что нам стоит меньше оправдываться и больше действовать.",
             "Эти оправдания только на руку мафии.",
             "Может, поговорим о чем-то более конструктивном?",
@@ -1741,7 +1672,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           ]
         ],
         "strategy": [
-          // Агрессивный тип (0)
           [
             "Я предлагаю проголосовать против самых тихих игроков.",
             "Давайте сосредоточимся на тех, кто мало говорит.",
@@ -1752,7 +1682,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Я считаю подозрительными тех, кто слишком активно обвиняет других.",
             "Моя стратегия - наблюдать за реакциями на обвинения."
           ],
-          // Защищающийся тип (1)
           [
             "Я предлагаю логически исключать наименее вероятных кандидатов.",
             "Давайте построим матрицу подозрений для каждого игрока.",
@@ -1763,7 +1692,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Я считаю, что нужно строить логические цепочки событий.",
             "Моя стратегия - исключение невозможного."
           ],
-          // Аналитический тип (2)
           [
             "Предлагаю проанализировать голосования предыдущих дней.",
             "Если мы построим матрицу подозрений, то сможем найти мафию.",
@@ -1774,7 +1702,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Моя стратегия основана на вероятностном анализе.",
             "Давайте построим дерево решений для оптимального голосования."
           ],
-          // Отвлекающий тип (3)
           [
             "Может быть, нам стоит сосредоточиться на другом аспекте игры?",
             "Я думаю, что стратегия - это хорошо, но интуиция тоже важна.",
@@ -1789,7 +1716,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
       },
       "sheriff": {
         "default": [
-          // Прямой тип (0)
           [
             "Я внимательно наблюдаю за всеми игроками.",
             "Мне кажется, некоторые ведут себя подозрительно.",
@@ -1800,7 +1726,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Я стараюсь анализировать каждое слово и действие.",
             "Мне кажется, что ключ к победе - в наблюдательности."
           ],
-          // Осторожный тип (1)
           [
             "Я пока не уверен, кто может быть мафия.",
             "Нужно больше информации, чтобы делать выводы.",
@@ -1811,7 +1736,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Пока рано делать окончательные выводы.",
             "Я предпочитаю действовать наверняка."
           ],
-          // Аналитический тип (2)
           [
             "Если проанализировать поведение всех игроков, можно найти несоответствия.",
             "Я пытаюсь выстроить логическую цепочку событий.",
@@ -1822,7 +1746,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Я строю вероятностную модель для каждого игрока.",
             "Мой анализ основан на объективных наблюдениях."
           ],
-          // Загадочный тип (3)
           [
             "У меня есть некоторые соображения, но я пока не готов ими поделиться.",
             "Я наблюдаю за всеми вами и делаю выводы.",
@@ -1835,7 +1758,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           ]
         ],
         "sheriff": [
-          // Прямой тип (0) - с намеками на роль шерифа
           [
             "Как человек, который внимательно следит за всеми, могу сказать...",
             "Если бы я мог проверять людей, я бы начал с самых подозрительных.",
@@ -1846,7 +1768,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Шериф должен тщательно выбирать, кого проверять каждую ночь.",
             "Я считаю, что информация о ролях - самое ценное в этой игре."
           ],
-          // Осторожный тип (1) - с намеками на роль шерифа
           [
             "Я бы не стал сразу раскрывать информацию о ролях, даже если бы знал.",
             "Шериф должен быть очень осторожен, чтобы не выдать себя мафии.",
@@ -1857,7 +1778,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Информация о ролях очень ценна, но и опасна.",
             "Я предпочитаю осторожный подход к раскрытию информации."
           ],
-          // Аналитический тип (2) - с намеками на роль шерифа
           [
             "Статистически, шериф имеет большие шансы найти мафию за несколько ночей.",
             "Если проанализировать оптимальную стратегию проверок, то...",
@@ -1868,7 +1788,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Если применить теорию вероятностей к проверкам шерифа...",
             "Аналитически подходя к роли шерифа, можно разработать оптимальную стратегию."
           ],
-          // Загадочный тип (3) - с намеками на роль шерифа
           [
             "Я знаю больше, чем кажется на первый взгляд.",
             "Я наблюдаю за всеми вами и делаю выводы.",
@@ -1883,7 +1802,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
       },
       "civilian": {
         "default": [
-          // Подозрительный тип (0)
           [
             "Кто-то из нас точно мафия, нужно быть внимательнее.",
             "Я заметил странное поведение некоторых игроков.",
@@ -1894,7 +1812,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Нужно обращать внимание на то, кто как голосует.",
             "Я подозреваю тех, кто пытается отвлечь внимание от себя."
           ],
-          // Логический тип (1)
           [
             "Давайте подумаем логически, кто мог бы быть мафия?",
             "Если проанализировать все сообщения, можно найти подсказки.",
@@ -1905,18 +1822,16 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Я предлагаю методично исключать подозреваемых.",
             "Давайте построим логическую цепочку событий."
           ],
-          // Эмоциональный тип (2)
           [
             "Я так и знал! Я чувствовал, что он мафия!",
-            "Боже мой, неужели мы нашли мафия?!", // Missing comma here
-            "Я в шоке! Но это многое объясняет!", // Missing comma here
-            "Я всегда чувствовал, что с ним что-то не так!", // Missing comma here
-            "Как страшно осознавать, что мафия была рядом с нами!", // Missing comma here
-            "Я так волнуюсь! Неужели мы наконец-то нашли мафия?", // Missing comma here
-            "Я просто не могу поверить! Это он?!", // Missing comma here
+            "Боже мой, неужели мы нашли мафия?",
+            "Я в шоке! Но это многое объясняет!",
+            "Я всегда чувствовал, что с ним что-то не так!",
+            "Как страшно осознавать, что мафия была рядом с нами!",
+            "Я так волнуюсь! Неужели мы наконец-то нашли мафия?",
+            "Я просто не могу поверить! Это он?",
             "Мое сердце подсказывало мне, что он не тот, за кого себя выдает!"
           ],
-          // Спокойный тип (3)
           [
             "Давайте сохранять спокойствие и методично искать мафия.",
             "У кого есть какие-то подозрения? Я готов выслушать все версии.",
@@ -1929,7 +1844,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           ]
         ],
         "accusation": [
-          // Подозрительный тип (0)
           [
             "Я согласен, этот игрок действительно подозрителен!",
             "Да, я тоже заметил странности в его поведении.",
@@ -1940,7 +1854,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Его поведение выдает его с головой.",
             "Я готов голосовать против этого подозрительного типа."
           ],
-          // Логический тип (1)
           [
             "Давайте проанализируем эти обвинения логически.",
             "Есть ли у нас достаточно доказательств для таких обвинений?",
@@ -1951,18 +1864,16 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Логика подсказывает мне, что в этих обвинениях что-то есть.",
             "Давайте методично проверим все аргументы."
           ],
-          // Эмоциональный тип (2)
           [
             "Я так и знал! Я чувствовал, что он мафия!",
-            "Боже мой, неужели мы нашли мафия?!", // Missing comma here
-            "Я в шоке! Но это многое объясняет!", // Missing comma here
-            "Я всегда чувствовал, что с ним что-то не так!", // Missing comma here
-            "Как страшно осознавать, что мафия была рядом с нами!", // Missing comma here
-            "Я так волнуюсь! Неужели мы наконец-то нашли мафия?", // Missing comma here
-            "Я просто не могу поверить! Это он?!", // Missing comma here
+            "Боже мой, неужели мы нашли мафия?",
+            "Я в шоке! Но это многое объясняет!",
+            "Я всегда чувствовал, что с ним что-то не так!",
+            "Как страшно осознавать, что мафия была рядом с нами!",
+            "Я так волнуюсь! Неужели мы наконец-то нашли мафия?",
+            "Я просто не могу поверить! Это он?",
             "Мое сердце подсказывало мне, что он не тот, за кого себя выдает!"
           ],
-          // Спокойный тип (3)
           [
             "Давайте не будем спешить с выводами на основе этих обвинений.",
             "Я предлагаю спокойно обсудить эти обвинения.",
@@ -1975,7 +1886,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           ]
         ],
         "defense": [
-          // Подозрительный тип (0)
           [
             "Твои оправдания звучат неубедительно.",
             "Чем больше ты оправдываешься, тем подозрительнее выглядишь.",
@@ -1986,7 +1896,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Я не доверяю людям, которые так много оправдываются.",
             "Твоя защита выглядит слишком подготовленной."
           ],
-          // Логический тип (1)
           [
             "Твои аргументы имеют смысл, но есть некоторые нестыковки.",
             "Давай логически проанализируем твои оправдания.",
@@ -1997,7 +1906,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Я хочу понять, как твои объяснения согласуются с фактами.",
             "Давай разберем твои аргументы по пунктам."
           ],
-          // Эмоциональный тип (2)
           [
             "Я хочу верить тебе, но мне так страшно ошибиться!",
             "Боже, как сложно понять, кто говорит правду!",
@@ -2008,7 +1916,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Я боюсь сделать неправильный выбор!",
             "Мне тревожно от всех этих оправданий и обвинений!"
           ],
-          // Спокойный тип (3)
           [
             "Я выслушал твои оправдания и готов их обдумать.",
             "Давайте все успокоимся и объективно оценим ситуацию.",
@@ -2021,7 +1928,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           ]
         ],
         "strategy": [
-          // Подозрительный тип (0)
           [
             "Я предлагаю голосовать против самых подозрительных игроков.",
             "Давайте сосредоточимся на тех, кто мало говорит.",
@@ -2032,7 +1938,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Я считаю подозрительными тех, кто слишком активно обвиняет других.",
             "Моя стратегия - наблюдать за реакциями на обвинения."
           ],
-          // Логический тип (1)
           [
             "Я предлагаю логически исключать наименее вероятных кандидатов.",
             "Давайте построим матрицу подозрений для каждого игрока.",
@@ -2043,7 +1948,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Я считаю, что нужно строить логические цепочки событий.",
             "Моя стратегия - исключение невозможного."
           ],
-          // Эмоциональный тип (2)
           [
             "Я чувствую, что нам нужно действовать быстро!",
             "Мое сердце подсказывает мне, что мафия среди нас!",
@@ -2054,7 +1958,6 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
             "Я чувствую, что мы на правильном пути!",
             "Давайте доверимся нашей интуиции!"
           ],
-          // Спокойный тип (3)
           [
             "Я предлагаю действовать осмотрительно и не спешить.",
             "Давайте спокойно обсудим все возможные стратегии.",
@@ -2068,20 +1971,17 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
         ]
       }
     };
-    
-    // Получаем фразы для конкретной роли и типа личности
+
     const phrases = botPhrases[role]?.[messageType]?.[personality] || botPhrases[role]?.["default"]?.[personality];
-    
+
     if (!phrases || phrases.length === 0) {
-      // Если нет подходящих фраз, используем дефолтные
       return "Я думаю, нам нужно быть внимательнее.";
     }
-    
-    // Если роль - шериф, и у него есть проверенные мафии, то можем намекнуть на это
+
     if (role === "sheriff" && messageType === "default") {
       const checkedMafia = Object.entries(state.checkedPlayers)
         .filter(([id, role]) => role === "mafia" && state.players.some(p => p.id === parseInt(id) && p.isAlive));
-      
+
       if (checkedMafia.length > 0) {
         const mafia = state.players.find(p => p.id === parseInt(checkedMafia[0][0]));
         if (mafia) {
@@ -2094,164 +1994,3 @@ export const GameProvider: React.FC<{children: React.ReactNode}> = ({ children }
           return sheriffHints[Math.floor(Math.random() * sheriffHints.length)];
         }
       }
-    }
-    
-    // Если роль - мафия, и есть подозрения на шерифа, то можем попытаться его дискредитировать
-    if (role === "mafia" && messageType === "default") {
-      const sheriffSuspects = state.players.filter(p => 
-        p.isAlive && 
-        p.role !== "mafia" && 
-        state.messages.some(m => 
-          m.playerId === p.id && 
-          (m.text.includes("подозрительно") || 
-           m.text.includes("проверил") || 
-           m.text.includes("думаю, что"))
-        )
-      );
-      
-      if (sheriffSuspects.length > 0) {
-        const suspect = sheriffSuspects[Math.floor(Math.random() * sheriffSuspects.length)];
-        const antiSheriffPhrases = [
-          `Мне кажется, ${suspect.name} слишком уверенно делает заявления. Может, это мафия пытается запутать нас?`,
-          `Я не доверяю словам ${suspect.name}, они звучат подозрительно.`,
-          `${suspect.name} пытается манипулировать нами, не слушайте его!`,
-          `Я думаю, что ${suspect.name} может быть мафией, которая притворяется шерифом.`
-        ];
-        return antiSheriffPhrases[Math.floor(Math.random() * antiSheriffPhrases.length)];
-      }
-    }
-    
-    // Возвращаем случайную фразу из подходящего набора
-    return phrases[Math.floor(Math.random() * phrases.length)];
-  };
-  
-  // Переход к следующей фазе
-  const nextPhase = () => {
-    setState(prev => {
-      if (prev.phase === "day") {
-        // Переходим к голосованию
-        return {
-          ...prev,
-          phase: "voting",
-          timer: 10, // 10 секунд на голосование
-          messages: [
-            ...prev.messages,
-            {
-              id: prev.messages.length + 1,
-              playerId: 0,
-              text: "Начинается голосование. У вас 10 секунд, чтобы выбрать, кого вы считаете мафия.",
-              timestamp: Date.now(),
-              isSystem: true
-            }
-          ]
-        };
-      } else if (prev.phase === "last-word") {
-        // Переходим к ночи после последнего слова
-        return startNight();
-      } else if (prev.phase === "mafia-chat") {
-        // Переходим к голосованию мафии
-        return {
-          ...prev,
-          phase: "mafia-turn",
-          timer: 15, // 15 секунд на голосование мафии
-          mafiaMessages: [
-            ...prev.mafiaMessages,
-            {
-              id: prev.mafiaMessages.length + 1,
-              playerId: 0,
-              text: "Мафия, выберите жертву.",
-              timestamp: Date.now(),
-              isSystem: true
-            }
-          ]
-        };
-      } else if (prev.phase === "sheriff-turn") {
-        // Если шериф - реальный игрок, но не выбрал цель, переходим к результатам
-        const sheriff = prev.players.find(p => p.isAlive && p.role === "sheriff");
-        
-        if (sheriff && !sheriff.isBot && !prev.selectedPlayer) {
-          return {
-            ...prev,
-            phase: "results",
-            timer: null
-          };
-        }
-      }
-      
-      return prev;
-    });
-    
-    // Если перешли к голосованию, запускаем голосование ботов
-    if (state.phase === "voting") {
-      setTimeout(() => {
-        botsVote();
-      }, 1500);
-    } else if (state.phase === "mafia-turn") {
-      setTimeout(() => {
-        mafiaBotsVote();
-      }, 1500);
-    } else if (state.phase === "results") {
-      setTimeout(() => {
-        showResults();
-      }, 1500);
-    }
-  };
-  
-  // Проверка условий победы - исправленная версия
-  const checkWinCondition = (players: Player[]): "mafia" | "civilians" | null => {
-    const livingPlayers = players.filter(p => p.isAlive);
-    const livingMafia = livingPlayers.filter(p => p.role === "mafia");
-    const livingCivilians = livingPlayers.filter(p => p.role !== "mafia");
-    
-    // Проверяем, жив ли игрок (не в тестовом режиме)
-    const realPlayer = players.find(p => !p.isBot);
-    if (realPlayer && !realPlayer.isAlive && !state.testMode) {
-      return realPlayer.role === "mafia" ? "civilians" : "mafia";
-    }
-    
-    // Мафия побеждает, если их количество равно или больше количества мирных
-    if (livingMafia.length >= livingCivilians.length) {
-      return "mafia";
-    }
-    
-    // Мирные побеждают, если вся мафия мертва
-    if (livingMafia.length === 0) {
-      return "civilians";
-    }
-    
-    // Игра продолжается
-    return null;
-  };
-  
-  // Получение названия роли
-  const getRoleName = (role: Role): string => {
-    switch (role) {
-      case "civilian": return "Мирный житель";
-      case "mafia": return "Мафия";
-      case "sheriff": return "Шериф";
-      default: return "Неизвестно";
-    }
-  };
-  
-  return (
-    <GameContext.Provider value={{ 
-      state, 
-      initGame, 
-      selectPlayer, 
-      sendMessage, 
-      vote, 
-      nextPhase 
-    }}>
-      {children}
-    </GameContext.Provider>
-  );
-};
-
-// Хук для использования контекста
-export const useGame = () => {
-  const context = React.useContext(GameContext);
-  if (context === undefined) {
-    throw new Error("useGame must be used within a GameProvider");
-  }
-  return context;
-};
